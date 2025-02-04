@@ -1,0 +1,521 @@
+version2 
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import Papa from 'papaparse';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import './App.css';
+
+// Sidebar Navigation Component
+const Sidebar = () => (
+  <div className="sidebar bg-dark position-fixed start-0 top-0 h-100 text-white p-4" style={{ width: '250px', zIndex: 1000 }}>
+    <h1 className="fs-3 fw-bold text-primary mb-4">BizAnalytics</h1>
+    <nav className="d-flex flex-column gap-2">
+      <Link to="/" className="text-decoration-none p-3 rounded text-light hover-effect">
+        Home
+      </Link>
+      <Link to="/upload" className="text-decoration-none p-3 rounded text-light hover-effect">
+        Upload Data
+      </Link>
+      <Link to="/departments" className="text-decoration-none p-3 rounded text-light hover-effect">
+        Department Analysis
+      </Link>
+    </nav>
+  </div>
+);
+
+// Home Page
+const Home = () => (
+  <div className="min-vh-100 d-flex justify-content-center align-items-center text-white p-4">
+    <h1 className="display-4 fw-bold text-primary">Welcome to BizAnalytics</h1>
+  </div>
+);
+
+// Upload Page
+const UploadPage = ({ onUpload }) => {
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (result) => onUpload(result.data),
+      });
+    }
+  };
+
+  return (
+    <div className="d-flex flex-column align-items-center justify-content-center h-100 text-white">
+      <div className="bg-dark bg-opacity-75 p-4 rounded border border-primary">
+        <h2 className="h3 mb-4 text-primary">Upload Your CSV</h2>
+        <div className="mb-3">
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleFileUpload}
+            className="form-control"
+          />
+        </div>
+        <p className="text-muted">Upload a CSV file with expenditures and profits columns.</p>
+      </div>
+    </div>
+  );
+};
+
+// Department Analysis Page
+const DepartmentAnalysis = ({ departments, drawCombinedDepartmentChart, drawPieCharts, drawDepartmentCharts }) => {
+  useEffect(() => {
+    drawCombinedDepartmentChart();
+    drawPieCharts();
+    Object.keys(departments).forEach((department) => drawDepartmentCharts(department));
+  }, [drawCombinedDepartmentChart, drawPieCharts, drawDepartmentCharts, departments]);
+
+  return (
+    <div className="p-4 text-white">
+      <h2 className="h3 mb-4 text-primary">Department Analysis</h2>
+      <div id="department-comparison" className="bg-dark bg-opacity-25 p-4 rounded mb-4"></div>
+      <div className="row mb-4">
+        <div className="col-md-6">
+          <div id="pie-chart-expenses" className="bg-dark bg-opacity-25 p-4 rounded"></div>
+        </div>
+        <div className="col-md-6">
+          <div id="pie-chart-profits" className="bg-dark bg-opacity-25 p-4 rounded"></div>
+        </div>
+      </div>
+      {Object.keys(departments).map((department) => (
+        <div key={department} className="mb-5">
+          <h3 className="h4 mb-4 text-primary">{department} Analysis</h3>
+          <div className="row">
+            <div className="col-md-4">
+              <div id={`${department}-expenditure`} className="bg-dark bg-opacity-25 p-4 rounded mb-4"></div>
+            </div>
+            <div className="col-md-4">
+              <div id={`${department}-profit`} className="bg-dark bg-opacity-25 p-4 rounded mb-4"></div>
+            </div>
+            <div className="col-md-4">
+              <div id={`${department}-profit-distribution`} className="bg-dark bg-opacity-25 p-4 rounded mb-4"></div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Main App
+const App = () => {
+  const [csvData, setCsvData] = useState([]);
+  const [departments, setDepartments] = useState({});
+  const [isGoogleChartsLoaded, setIsGoogleChartsLoaded] = useState(false);
+
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://www.gstatic.com/charts/loader.js';
+    script.async = true;
+    script.onload = () => {
+      window.google.charts.load('current', {
+        packages: ['corechart'],
+        callback: () => setIsGoogleChartsLoaded(true),
+      });
+    };
+    document.body.appendChild(script);
+    return () => document.body.removeChild(script);
+  }, []);
+
+  const processCsvData = (data) => {
+    const departments = {};
+    const columns = Object.keys(data[0]);
+    columns.forEach((col, idx) => {
+      if (idx % 2 === 0) {
+        const deptName = col.split('_')[0];
+        departments[deptName] = {
+          expenditures: data.map((row) => parseFloat(row[col]) || 0),
+          profits: data.map((row) => parseFloat(row[columns[idx + 1]]) || 0),
+        };
+      }
+    });
+    setDepartments(departments);
+    setCsvData(data);
+  };
+
+  const drawCombinedDepartmentChart = useCallback(() => {
+    if (!isGoogleChartsLoaded || !Object.keys(departments).length) return;
+    const chartData = new window.google.visualization.DataTable();
+    chartData.addColumn('string', 'Department');
+    chartData.addColumn('number', 'Expenditure');
+    chartData.addColumn('number', 'Profit');
+    chartData.addRows(
+      Object.entries(departments).map(([name, data]) => [
+        name,
+        data.expenditures.reduce((a, b) => a + b, 0),
+        data.profits.reduce((a, b) => a + b, 0),
+      ])
+    );
+    const chart = new window.google.visualization.ColumnChart(document.getElementById('department-comparison'));
+    chart.draw(chartData, { title: 'Department Comparison', legend: 'top' });
+  }, [departments, isGoogleChartsLoaded]);
+
+  const drawPieCharts = useCallback(() => {
+    if (!isGoogleChartsLoaded || !Object.keys(departments).length) return;
+
+    const expenseData = new window.google.visualization.DataTable();
+    expenseData.addColumn('string', 'Department');
+    expenseData.addColumn('number', 'Total Expenditure');
+    expenseData.addRows(
+      Object.entries(departments).map(([name, data]) => [
+        name,
+        data.expenditures.reduce((a, b) => a + b, 0),
+      ])
+    );
+    const expenseChart = new window.google.visualization.PieChart(document.getElementById('pie-chart-expenses'));
+    expenseChart.draw(expenseData, { title: 'Total Expenditures by Department', pieHole: 0.4 });
+
+    const profitData = new window.google.visualization.DataTable();
+    profitData.addColumn('string', 'Department');
+    profitData.addColumn('number', 'Total Profit');
+    profitData.addRows(
+      Object.entries(departments).map(([name, data]) => [
+        name,
+        data.profits.reduce((a, b) => a + b, 0),
+      ])
+    );
+    const profitChart = new window.google.visualization.PieChart(document.getElementById('pie-chart-profits'));
+    profitChart.draw(profitData, { title: 'Total Profits by Department', pieHole: 0.4 });
+  }, [departments, isGoogleChartsLoaded]);
+
+  const drawDepartmentCharts = useCallback(
+    (department) => {
+      if (!isGoogleChartsLoaded || !departments[department]) return;
+
+      const { expenditures, profits } = departments[department];
+
+      const expenditureData = new window.google.visualization.DataTable();
+      expenditureData.addColumn('string', 'Time');
+      expenditureData.addColumn('number', 'Expenditure');
+      expenditureData.addRows(expenditures.map((value, index) => [`Time ${index + 1}`, value]));
+      const expenditureChart = new window.google.visualization.LineChart(
+        document.getElementById(`${department}-expenditure`)
+      );
+      expenditureChart.draw(expenditureData, {
+        title: `${department} Expenditure Over Time`,
+        legend: 'top',
+        colors: ['#0d6efd'],
+      });
+
+      const profitData = new window.google.visualization.DataTable();
+      profitData.addColumn('string', 'Time');
+      profitData.addColumn('number', 'Profit');
+      profitData.addRows(profits.map((value, index) => [`Time ${index + 1}`, value]));
+      const profitChart = new window.google.visualization.LineChart(
+        document.getElementById(`${department}-profit`)
+      );
+      profitChart.draw(profitData, {
+        title: `${department} Profit Over Time`,
+        legend: 'top',
+        colors: ['#198754'],
+      });
+
+      const distributionData = new window.google.visualization.DataTable();
+      distributionData.addColumn('number', 'Profit');
+      distributionData.addRows(profits.map((value) => [value]));
+      const distributionChart = new window.google.visualization.Histogram(
+        document.getElementById(`${department}-profit-distribution`)
+      );
+      distributionChart.draw(distributionData, {
+        title: `${department} Profit Distribution`,
+        legend: 'none',
+        colors: ['#dc3545'],
+      });
+    },
+    [departments, isGoogleChartsLoaded]
+  );
+
+  return (
+    <Router>
+      <div className="d-flex">
+        <Sidebar />
+        <div className="flex-grow-1 ms-5" style={{ marginLeft: '250px' }}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/upload" element={<UploadPage onUpload={processCsvData} />} />
+            <Route
+              path="/departments"
+              element={
+                <DepartmentAnalysis
+                  departments={departments}
+                  drawCombinedDepartmentChart={drawCombinedDepartmentChart}
+                  drawPieCharts={drawPieCharts}
+                  drawDepartmentCharts={drawDepartmentCharts}
+                />
+              }
+            />
+          </Routes>
+        </div>
+      </div>
+    </Router>
+  );
+};
+
+export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import React, { useState, useEffect } from "react";
+import Papa from "papaparse";
+import "./App.css";
+
+const App = () => {
+  const [csvData, setCsvData] = useState([]);
+  const [columnNames, setColumnNames] = useState([]);
+  const [expenditures, setExpenditures] = useState([]);
+  const [profits, setProfits] = useState([]);
+
+  useEffect(() => {
+    // Load Google Charts library
+    const script = document.createElement("script");
+    script.src = "https://www.gstatic.com/charts/loader.js";
+    script.async = true;
+    script.onload = () => {
+      window.google.charts.load("current", { packages: ["corechart"] });
+    };
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (result) => {
+          processCsvData(result.data);
+          setCsvData(result.data);
+        },
+      });
+    }
+  };
+
+  const processCsvData = (data) => {
+    const firstRow = Object.keys(data[0]);
+    setColumnNames(firstRow);
+
+    const exp = [];
+    const prof = [];
+
+    firstRow.forEach((col, index) => {
+      if (index % 2 === 0) exp.push(data.map((row) => parseFloat(row[col] || 0)));
+      else prof.push(data.map((row) => parseFloat(row[col] || 0)));
+    });
+
+    setExpenditures(exp);
+    setProfits(prof);
+
+    window.google.charts.setOnLoadCallback(() => {
+      drawExpendituresBarGraph(exp, firstRow);
+      drawProfitsBarGraph(prof, firstRow);
+      drawCombinedLineGraph(exp, prof);
+      drawExpenditurePieChart(exp, firstRow);
+    });
+  };
+
+  const drawExpendituresBarGraph = (exp, columnNames) => {
+    const data = window.google.visualization.arrayToDataTable([
+      ["Time", ...columnNames.filter((_, i) => i % 2 === 0)],
+      ...exp[0].map((_, i) => [i + 1, ...exp.map((e) => e[i])]),
+    ]);
+
+    const options = {
+      title: "Expenditure Analysis",
+      width: 700,
+      height: 400,
+      colors: ["#FF6384", "#4BC0C0", "#36A2EB"],
+    };
+
+    const chart = new window.google.visualization.ColumnChart(
+      document.getElementById("expenditure-bar")
+    );
+    chart.draw(data, options);
+  };
+
+  const drawProfitsBarGraph = (prof, columnNames) => {
+    const data = window.google.visualization.arrayToDataTable([
+      ["Time", ...columnNames.filter((_, i) => i % 2 !== 0)],
+      ...prof[0].map((_, i) => [i + 1, ...prof.map((p) => p[i])]),
+    ]);
+
+    const options = {
+      title: "Profit Analysis",
+      width: 700,
+      height: 400,
+      colors: ["#36A2EB", "#FF9F40", "#FFCD56"],
+    };
+
+    const chart = new window.google.visualization.ColumnChart(
+      document.getElementById("profit-bar")
+    );
+    chart.draw(data, options);
+  };
+
+  const drawCombinedLineGraph = (exp, prof) => {
+    const data = window.google.visualization.arrayToDataTable([
+      ["Time", "Expenditures", "Profits"],
+      ...exp[0].map((_, i) => [
+        i + 1,
+        exp.reduce((sum, e) => sum + e[i], 0),
+        prof.reduce((sum, p) => sum + p[i], 0),
+      ]),
+    ]);
+
+    const options = {
+      title: "Expenditures vs Profits",
+      width: 700,
+      height: 400,
+      curveType: "function",
+      legend: { position: "bottom" },
+    };
+
+    const chart = new window.google.visualization.LineChart(
+      document.getElementById("combined-line")
+    );
+    chart.draw(data, options);
+  };
+
+  const drawExpenditurePieChart = (exp, columnNames) => {
+    const totals = exp.map((e) => e.reduce((sum, val) => sum + val, 0));
+    const data = window.google.visualization.arrayToDataTable([
+      ["Expenditure", "Amount"],
+      ...totals.map((val, i) => [columnNames[i * 2], val]),
+    ]);
+
+    const options = {
+      title: "Expenditure Distribution",
+      width: 700,
+      height: 400,
+      pieHole: 0.4,
+    };
+
+    const chart = new window.google.visualization.PieChart(
+      document.getElementById("expenditure-pie")
+    );
+    chart.draw(data, options);
+  };
+
+  return (
+    <div className="app-container">
+      <nav className="navbar">
+        <h1>Business Analysis</h1>
+        <input
+          type="file"
+          accept=".csv"
+          onChange={handleFileUpload}
+          className="upload-button"
+        />
+      </nav>
+
+      <div className="content">
+        <h2 className="section-title">Visualized Data</h2>
+
+        <div id="expenditure-bar" className="graph"></div>
+        <div id="profit-bar" className="graph"></div>
+        <div id="combined-line" className="graph"></div>
+        <div id="expenditure-pie" className="graph"></div>
+      </div>
+    </div>
+  );
+};
+
+export default App;
+
+
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background-color: #f4f4f9;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.navbar {
+  width: 100%;
+  background-color: #2c3e50;
+  color: #ecf0f1;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 20px;
+}
+
+.navbar h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.upload-button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: #3498db;
+  color: white;
+  font-size: 1rem;
+  transition: background 0.3s ease;
+}
+
+.upload-button:hover {
+  background-color: #2980b9;
+}
+
+.content {
+  margin-top: 20px;
+  width: 80%;
+}
+
+.section-title {
+  text-align: center;
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+}
+
+.graph {
+  margin: 20px auto;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  width: 100%;
+  max-width: 800px;
+}
+
+
+
+
+
+
