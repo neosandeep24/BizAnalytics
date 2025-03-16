@@ -1,6 +1,6 @@
 <h1 align="center">📊 Business Analytics</h1>
 <br/>
-<h1  align="center"> Website link : 👉 <a href="https://biz-analytics.vercel.app"/>BIZ ANALYTICS</a></h1>
+<h1  align="center"> Website link : 👉 <a href="https://biz-analytics-m5xfrmp0h-neosandeep24s-projects.vercel.app/"/>BIZ ANALYTICS</a></h1>
 
 <p align="center">
 A web-based analytics dashboard that visualizes expenditures and profits using interactive graphs. Built with <b>React</b>, <b>Tailwind CSS</b>, and <b>Chart.js</b>, this project enables users to upload CSV files and generate insightful reports.
