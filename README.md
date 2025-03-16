@@ -28,9 +28,11 @@ A web-based analytics dashboard that visualizes expenditures and profits using i
 <pre>
 📂 biz-analytics-dashboard
 │── 📂 src
-│   ├── <b>App.js</b>             # Main application entry
-│     ├── 📂 <b>components</b>    # Reusable UI components
-│     ├── 📂 <b>pages</b>         # Main application pages
+│   ├── <b>Main.jsx</b>  
+│   ├── <b>App.jsx</b>             # Main application entry
+│   ├── 📂 <b>components</b>      # Reusable UI components
+│         ├── 📂 <b>UI components</b> 
+          ├── 📂 <b>pages</b>         # Main application pages
 │     ├── 📂 <b>utils</b>         # CSV parsing & PDF generation logic
 │── 📄 <b>package.json</b>        # Dependencies & scripts
 │── 📄 <b>README.md</b>           # Project documentation
